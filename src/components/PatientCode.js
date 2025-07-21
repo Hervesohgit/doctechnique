@@ -32,7 +32,7 @@ import {
     Healing as DiagnosticIcon,
     Menu as MenuIcon
 } from '@mui/icons-material';
-import Prism from 'prismjs';
+import Prism, { languages } from 'prismjs';
 import 'prismjs/themes/prism-okaidia.css';
 import 'prismjs/components/prism-java';
 import 'prismjs/components/prism-json';
@@ -122,25 +122,32 @@ public class PatientService {
         return this.infoPatientRepository.save(infoPatient);
     }
 
+
+
     public List<DtoPatient> search() {
-        return infoPatientRepository.findAll()
-                .stream()
-                .map(DtoPatient::fromEntity)
-                .collect(Collectors.toList());
-    }
+    return infoPatientRepository.findAll()
+            .stream()
+            .map(DtoPatient::fromEntity)
+            .collect(Collectors.toList());
+}
+
+    // @Transactional(readOnly = true)
 
     public Patient serchPatientById(Long id) {
+
         return infoPatientRepository.findById(id)
-                .orElseThrow(() -> new PatientErrorExceptions("Not patient with ID " + id));
+                .orElseThrow(() -> new PatientErrorExceptions(" Not patient with ID " + id));
+
     }
 
     public boolean patientexists(Long id) {
+        
         return infoPatientRepository.existsById(id);
     }
 
     public Patient updatePatient(Long id, Patient infoPatient) {
         Patient patientToUpdate = infoPatientRepository.findById(id)
-                .orElseThrow(() -> new PatientErrorExceptions("Patient non trouvé avec l'ID : " + id));
+                .orElseThrow(() -> new PatientErrorExceptions("Historique non trouvé avec l'ID : " + id));
 
         patientToUpdate.setName(infoPatient.getName());
         patientToUpdate.setPrenom(infoPatient.getPrenom());
@@ -161,6 +168,7 @@ public class PatientService {
             infoPatientRepository.deleteById(id);
         }
     }
+
 }`
                 },
                 {
@@ -169,10 +177,19 @@ public class PatientService {
                     language: 'java',
                     code: `package com.herve.intergiciel.PatientManager.Controllers;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
+import java.util.stream.Collectors;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
 import com.herve.intergiciel.PatientManager.DTO.DtoPatient;
+import com.herve.intergiciel.PatientManager.Exceptions.PatientErrorExceptions;
 import com.herve.intergiciel.PatientManager.Modeles.Patient;
 import com.herve.intergiciel.PatientManager.Services.PatientService;
 
@@ -181,7 +198,10 @@ import lombok.AllArgsConstructor;
 @RestController
 @RequestMapping("/patient")
 @AllArgsConstructor
+// @CrossOrigin(origins = "*", allowedHeaders = "*", methods = { RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT,
+//         RequestMethod.DELETE, RequestMethod.OPTIONS })
 public class PatientController {
+
     private final PatientService infoPatientService;
 
     @PostMapping(path = "/create", consumes = "application/json")
@@ -229,6 +249,8 @@ public class PatientController {
         }
         return ResponseEntity.ok(exists);
     }
+}
+
 }`
                 },
                 {
@@ -272,11 +294,6 @@ import lombok.Setter;
 @Table(name = "patients")
 public class Patient {
 
-    // definition des types de valeur que contiendra le genre
-    // definition des types de valeur que contiendra le groupe sanguin
-   
-
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long idPat;
@@ -305,19 +322,54 @@ public class Patient {
 
 
 }
+
 `
                 },
                 {
                     id: 'dto',
                     title: 'DTO',
                     language: 'java',
-                    code: `@Data
+                    code: `package com.herve.intergiciel.PatientManager.DTO;
+
+import java.sql.Date;
+
+import com.herve.intergiciel.PatientManager.Enum.Genre;
+import com.herve.intergiciel.PatientManager.Enum.GroupeSanguin;
+import com.herve.intergiciel.PatientManager.Modeles.Patient;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
 public class DtoPatient {
+
     private Long idPat;
-    private String nomPat;
-    private String prenomPat;
-    private int age;
-}`
+    private String name;
+    private String prenom;
+    private String tel;
+    private String addr;
+    private Genre sexe;
+    private Date dateN;
+    private GroupeSanguin groupeSanguin;
+
+    // 🔁 Ajoute cette méthode ici
+    public static DtoPatient fromEntity(Patient patient) {
+        return new DtoPatient(
+            patient.getIdPat(),
+            patient.getName(),
+            patient.getPrenom(),
+            patient.getTel(),
+            patient.getAddr(),
+            patient.getSexe(),
+            patient.getDateN(),
+            patient.getGroupeSanguin()
+        );
+    }
+}
+`
                 },
                 {
                     id: 'example-request',
@@ -342,150 +394,157 @@ public class DtoPatient {
             icon: <PeopleIcon />,
             snippets: [
                 {
-                    id: 'personnel-service',
+                    id: 'service',
                     title: 'Service',
                     language: 'java',
-                    code: `package com.herve.intergiciel.PersonnelManager.Services;
+                    code: `package com.herve.intergiciel.RHManager.RHServices;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
-import com.herve.intergiciel.PersonnelManager.DTO.DtoPersonnel;
-import com.herve.intergiciel.PersonnelManager.Exceptions.PersonnelErrorExceptions;
-import com.herve.intergiciel.PersonnelManager.Modeles.Personnel;
-import com.herve.intergiciel.PersonnelManager.Repositories.PersonnelRepository;
+import org.springframework.web.bind.annotation.PathVariable;
+
+import com.herve.intergiciel.RHManager.Exceptions.EmployeNotFoundException;
+import com.herve.intergiciel.RHManager.Modeles.Employe;
+import com.herve.intergiciel.RHManager.RHRepository.EmployesRepository;
 
 import lombok.AllArgsConstructor;
 
 @Service
 @AllArgsConstructor
-public class PersonnelService {
-    private PersonnelRepository personnelRepository;
+public class EmployeService {
+    
+    private EmployesRepository employesRepository;
 
-    public Personnel create(Personnel personnel) {
-        return this.personnelRepository.save(personnel);
+    public Employe create(Employe employe){
+        return this.employesRepository.save(employe);
     }
 
-    public List<DtoPersonnel> search() {
-        return personnelRepository.findAll()
-                .stream()
-                .map(DtoPersonnel::fromEntity)
-                .collect(Collectors.toList());
+    public List<Employe> search(){
+        return this.employesRepository.findAll();
     }
 
-    public Personnel searchPersonnelById(Long id) {
-        return personnelRepository.findById(id)
-                .orElseThrow(() -> new PersonnelErrorExceptions("Personnel non trouvé avec l'ID " + id));
+    public Employe searchEmployeById(Long id){
+        Employe employe=employesRepository.findById(id)
+            .orElseThrow(() -> new EmployeNotFoundException("No Employe with ID "+id));
+            return employe;
     }
 
-    public boolean personnelExists(Long id) {
-        return personnelRepository.existsById(id);
+    public Employe update( Long id, Employe employe) {
+
+        Employe employeToUpdate=employesRepository.findById(id)
+            .orElseThrow(() -> new EmployeNotFoundException("Employe not found"));
+
+        employeToUpdate.setNom(employe.getNom());
+        employeToUpdate.setPrenom(employe.getPrenom());
+        employeToUpdate.setAdresse(employe.getAdresse());
+        employeToUpdate.setDateEmbauche(employe.getDateEmbauche());
+        employeToUpdate.setDateNaissance(employe.getDateNaissance());
+        employeToUpdate.setEmail(employe.getEmail());
+        employeToUpdate.setSexe(employe.getSexe());
+        employeToUpdate.setTelephone(employe.getTelephone());
+
+        return employesRepository.save(employeToUpdate);
     }
 
-    public Personnel updatePersonnel(Long id, Personnel personnel) {
-        Personnel personnelToUpdate = personnelRepository.findById(id)
-                .orElseThrow(() -> new PersonnelErrorExceptions("Personnel non trouvé avec l'ID : " + id));
+    public void delete( Long id) {
 
-        personnelToUpdate.setName(personnel.getName());
-        personnelToUpdate.setPrenom(personnel.getPrenom());
-        personnelToUpdate.setTel(personnel.getTel());
-        personnelToUpdate.setDateN(personnel.getDateN());
-        personnelToUpdate.setEmail(personnel.getEmail());
-        personnelToUpdate.setRole(personnel.getRole());
-        personnelToUpdate.setSexe(personnel.getSexe());
-        personnelToUpdate.setAddr(personnel.getAddr());
-
-        return personnelRepository.save(personnelToUpdate);
+        if (!employesRepository.existsById(id)) {
+            throw new EmployeNotFoundException("Not Employe with ID "+id);
+        }
+        employesRepository.deleteById(id);
     }
 
-    public void delete(Long id) {
-        if (!personnelRepository.existsById(id)) {
-            throw new PersonnelErrorExceptions("Personnel non trouvé");
+    public boolean employeExists(Long id){
+        if (employesRepository.existsById(id)) {
+            return true;
         } else {
-            personnelRepository.deleteById(id);
+            throw new EmployeNotFoundException("Not Employe with ID "+id);
+            
         }
     }
-}`
+    
+
+}
+`
                 },
                 {
-                    id: 'personnel-controller',
+                    id: 'controller',
                     title: 'Controller',
                     language: 'java',
-                    code: `package com.herve.intergiciel.PersonnelManager.Controllers;
+                    code: `package com.herve.intergiciel.RHManager.Controller;
 
 import java.util.List;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import com.herve.intergiciel.PersonnelManager.DTO.DtoPersonnel;
-import com.herve.intergiciel.PersonnelManager.Modeles.Personnel;
-import com.herve.intergiciel.PersonnelManager.Services.PersonnelService;
 
-import lombok.AllArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.herve.intergiciel.RHManager.Modeles.Employe;
+import com.herve.intergiciel.RHManager.RHRepository.EmployesRepository;
+import com.herve.intergiciel.RHManager.RHServices.EmployeService;
+
+import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/personnel")
-@AllArgsConstructor
-public class PersonnelController {
-    private final PersonnelService personnelService;
+@RequestMapping("/rh/employe")
+@RequiredArgsConstructor
+@CrossOrigin(origins = "*")
+public class CRUDEmploye {
+
+    private final EmployeService employeService;
+
 
     @PostMapping(path = "/create", consumes = "application/json")
-    public ResponseEntity<Personnel> create(@RequestBody Personnel personnel) {
-        return ResponseEntity.ok(personnelService.create(personnel));
+    public ResponseEntity<Employe> create(@RequestBody Employe infoPatient) {
+        return ResponseEntity.ok(employeService.create(infoPatient));
     }
 
     @GetMapping(produces = "application/json")
-    public ResponseEntity<?> search() {
-        List<DtoPersonnel> personnelList = personnelService.search();
-        if (personnelList.isEmpty()) {
-            return ResponseEntity.ok("Aucun personnel trouvé");
-        }
-        return ResponseEntity.ok(personnelList);
+    public ResponseEntity<List<Employe>> search() {
+        List<Employe> employes=employeService.search();
+        return ResponseEntity.ok(employes);
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<?> searchPersonnelById(@PathVariable Long id) {
-        return ResponseEntity.ok(personnelService.searchPersonnelById(id));
+    @GetMapping(path = "/{id}", produces = "application/json")
+    public ResponseEntity<Employe> getEmployeById(@PathVariable Long id) {
+        return ResponseEntity.ok(employeService.searchEmployeById(id));
     }
 
-    @PutMapping(path = "/update/{id}", consumes = "application/json")
-    public ResponseEntity<?> update(@PathVariable Long id, @RequestBody Personnel personnel) {
-        if (!id.equals(personnel.getIdPers())) {
-            return ResponseEntity.badRequest().body("ID dans l'URL ne correspond pas au corps de la requête");
-        }
-        try {
-            return ResponseEntity.ok(personnelService.updatePersonnel(id, personnel));
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Erreur lors de la mise à jour: " + e.getMessage());
-        }
+    @PutMapping(path = "update/{id}", consumes = "application/json")
+    public ResponseEntity<Employe> updateEmploye(@PathVariable Long id, @RequestBody Employe employe) {
+        return ResponseEntity.ok(employeService.update(id , employe));
     }
-
     @DeleteMapping("/delete/{id}")
-    public ResponseEntity<?> delete(@PathVariable Long id) {
-        personnelService.delete(id);
+    public ResponseEntity<?> deleteEmploye(@PathVariable Long id) {
+        employeService.delete(id);
         return ResponseEntity.noContent().build();
-    }
 
-    @PostMapping("/exists/{id}")
-    public ResponseEntity<Boolean> personnelExists(@PathVariable Long id) {
-        boolean exists = personnelService.personnelExists(id);
-        if (!exists) {
-            return ResponseEntity.notFound().build();
-        }
+    }
+    @GetMapping("/exists/{id}")
+    public ResponseEntity<Boolean> employeExists(@PathVariable Long id) {
+        boolean exists = employeService.employeExists(id);
         return ResponseEntity.ok(exists);
     }
+}
+
 }`
                 },
                 {
-                    id: 'personnel-model',
+                    id: 'model',
                     title: 'Entity',
                     language: 'java',
-                    code: `package com.herve.intergiciel.PersonnelManager.Modeles;
+                    code: `package com.herve.intergiciel.RHManager.Modeles;
 
-import java.sql.Date;
 
-import com.herve.intergiciel.PersonnelManager.Enum.Genre;
-import com.herve.intergiciel.PersonnelManager.Enum.RolePersonnel;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -496,68 +555,75 @@ import jakarta.persistence.Table;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
-import lombok.Data;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
 
 @Entity
-@Data
-@Table(name = "personnel")
-public class Personnel {
-
+@AllArgsConstructor
+@NoArgsConstructor
+@Table(name = "employes")
+@Setter
+@Getter
+public class Employe {
+    public enum Genre{HOMME, FEMME, AUTRE, homme, femme, autre, Homme, Femme, H, F, h, f, masculin, feminin, FEMININ, MASCULIN, M}
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long idPers;
+    private Long id;
 
     @NotNull(message = "Ce champ est obligatoire")
-    private String name;
-    
+    private String nom;
     private String prenom;
 
-    @Pattern(regexp = "^[+0][0-9]*$", message = "Le téléphone doit commencer par + ou 0")
-    private String tel;
-
-    private String addr;
-   
-    @NotNull(message = "Ce champ est obligatoire")
+    @NotNull
     private Genre sexe;
 
-    @Column(name = "date_naissance")
-    private Date dateN;
+    @DateTimeFormat(pattern = "yyyy-MM-jj")
+    @NotNull
+    @Pattern(regexp = "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", message = "La date de naissance doit être au format yyyy-MM-jj.")
+    private String dateNaissance;
 
-    @Email(message = "Email invalide ou est deja utilisé")
-    @Column(unique = true)
+    @Pattern(regexp = "^[+00][0-9]*$", message = "Le numéro de téléphone doit contenir uniquement des chiffres.")
+    private String telephone;
+
+    private String adresse;
+
+    @Email
+    @Pattern(regexp = "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+$", message = "L'adresse e-mail n'est pas valide.")
+    @NotNull
     private String email;
 
-    @NotNull(message = "Le rôle du personnel est obligatoire")
-    private RolePersonnel role;
+
+    @DateTimeFormat(pattern = "yyyy-MM-jj")
+    private String dateEmbauche;
+    
+//     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+//     private List<Document> documents = new ArrayList<>();
+// }
+
 }
+
 `
                 },
-                {
-                    id: 'personnel-dto',
-                    title: 'DTO',
-                    language: 'java',
-                    code: `@Data
-public class DtoPersonnel {
-    private Long idPers;
-    private String nomPers;
-    private String prenomPers;
-    private String role;
-}`
-                },
+
                 {
                     id: 'personnel-example-request',
                     title: 'Exemple Requête POST',
                     language: 'json',
                     code: `{
-  "name": "Martin",
-  "prenom": "Sophie",
-  "tel": "+33698765432",
-  "addr": "456 Avenue Example, Lyon",
-  "sexe": "F",
-  "dateN": "1985-05-10",
-  "email": "sophie.martin@example.com",
-  "role": "MEDECIN"
-}`
+
+  "nom": "Doe",
+  "prenom": "John",
+  "sexe": "HOMME",
+  "dateNaissance": "1990-05-15",
+  "telephone": "+00123456789",
+  "adresse": "123 Rue Principale, Paris",
+  "email": "john.doe@example.com",
+  "dateEmbauche": "2022-09-01"
+}
+`
                 }
             ]
         },
@@ -566,136 +632,351 @@ public class DtoPersonnel {
             icon: <PharmacyIcon />,
             snippets: [
                 {
-                    id: 'pharmacy-service',
+                    id: 'service',
                     title: 'Service',
                     language: 'java',
-                    code: `package com.herve.intergiciel.PharmacyManager.Services;
+                    code: `package com.herve.intergiciel.PharmacyManager.Service;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.modelmapper.ModelMapper;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.herve.intergiciel.PharmacyManager.Dto.MedicamentDTO;
+import com.herve.intergiciel.PharmacyManager.Exception.MedicamentNotFoundException;
+import com.herve.intergiciel.PharmacyManager.Modele.Medicament;
+import com.herve.intergiciel.PharmacyManager.Repository.MedicamentRepository;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.springframework.stereotype.Service;
-import com.herve.intergiciel.PharmacyManager.DTO.DtoMedicament;
-import com.herve.intergiciel.PharmacyManager.Exceptions.PharmacyErrorExceptions;
-import com.herve.intergiciel.PharmacyManager.Modeles.Medicament;
-import com.herve.intergiciel.PharmacyManager.Repositories.MedicamentRepository;
-
-import lombok.AllArgsConstructor;
-
 @Service
-@AllArgsConstructor
-public class PharmacyService {
-    private MedicamentRepository medicamentRepository;
+@RequiredArgsConstructor
+@Transactional
+@Slf4j
+public class MedicamentService {
+    private final MedicamentRepository medicamentRepository;
+    private final ModelMapper modelMapper;
 
-    public Medicament create(Medicament medicament) {
-        return this.medicamentRepository.save(medicament);
+    public MedicamentDTO createMedicament(MedicamentDTO medicamentDTO) {
+        log.debug("Création d'un nouveau médicament: {}", medicamentDTO);
+        Medicament medicament = modelMapper.map(medicamentDTO, Medicament.class);
+        Medicament savedMedicament = medicamentRepository.save(medicament);
+        return modelMapper.map(savedMedicament, MedicamentDTO.class);
     }
 
-    public List<DtoMedicament> search() {
+    public List<MedicamentDTO> getAllMedicaments() {
+        log.debug("Récupération de tous les médicaments");
         return medicamentRepository.findAll()
                 .stream()
-                .map(DtoMedicament::fromEntity)
+                .map(medicament -> modelMapper.map(medicament, MedicamentDTO.class))
                 .collect(Collectors.toList());
     }
 
-    public Medicament searchMedicamentById(Long id) {
-        return medicamentRepository.findById(id)
-                .orElseThrow(() -> new PharmacyErrorExceptions("Médicament non trouvé avec l'ID " + id));
+    public MedicamentDTO getMedicamentById(Long id) {
+        log.debug("Recherche du médicament avec ID: {}", id);
+        Medicament medicament = medicamentRepository.findById(id)
+                .orElseThrow(() -> new MedicamentNotFoundException("Medicament not found with id: " + id));
+        return modelMapper.map(medicament, MedicamentDTO.class);
     }
 
-    public boolean medicamentExists(Long id) {
-        return medicamentRepository.existsById(id);
-    }
+    public MedicamentDTO updateMedicament(String code, MedicamentDTO medicamentDTO) {
+        log.debug("Mise à jour du médicament avec code: {}", code);
+        Medicament existingMedicament = medicamentRepository.findByCode(code)
+                .orElseThrow(() -> new MedicamentNotFoundException("Medicament not found with code: " + code));
 
-    public Medicament updateMedicament(Long id, Medicament medicament) {
-        Medicament medicamentToUpdate = medicamentRepository.findById(id)
-                .orElseThrow(() -> new PharmacyErrorExceptions("Médicament non trouvé avec l'ID : " + id));
-
-        medicamentToUpdate.setName(medicament.getName());
-        medicamentToUpdate.setDescription(medicament.getDescription());
-        medicamentToUpdate.setPrix(medicament.getPrix());
-        medicamentToUpdate.setQuantite(medicament.getQuantite());
-
-        return medicamentRepository.save(medicamentToUpdate);
-    }
-
-    public void delete(Long id) {
-        if (!medicamentRepository.existsById(id)) {
-            throw new PharmacyErrorExceptions("Médicament non trouvé");
-        } else {
-            medicamentRepository.deleteById(id);
+        // Mise à jour sélective pour éviter d'écraser les valeurs non fournies
+        if (medicamentDTO.getNom() != null) {
+            existingMedicament.setNom(medicamentDTO.getNom());
         }
+        if (medicamentDTO.getDescription() != null) {
+            existingMedicament.setDescription(medicamentDTO.getDescription());
+        }
+        if (medicamentDTO.getPrixUnitaire() > 0) {
+            existingMedicament.setPrixUnitaire(medicamentDTO.getPrixUnitaire());
+        }
+        if (medicamentDTO.getQuantiteStock() >= 0) {
+            existingMedicament.setQuantiteStock(medicamentDTO.getQuantiteStock());
+        }
+        if (medicamentDTO.getDateExpiration() != null) {
+            existingMedicament.setDateExpiration(medicamentDTO.getDateExpiration());
+        }
+        if (medicamentDTO.getFabriquant() != null) {
+            existingMedicament.setFabriquant(medicamentDTO.getFabriquant());
+        }
+        if (medicamentDTO.getCategorie() != null) {
+            existingMedicament.setCategorie(medicamentDTO.getCategorie());
+        }
+
+        Medicament updatedMedicament = medicamentRepository.save(existingMedicament);
+        log.info("Médicament {} mis à jour avec succès", code);
+        return modelMapper.map(updatedMedicament, MedicamentDTO.class);
     }
-}`
+
+    public boolean verifyMedicamentAvailability(List<Long> medicamentIds) {
+        log.debug("Vérification de la disponibilité pour {} médicaments", medicamentIds.size());
+        return medicamentIds.stream()
+                .allMatch(id -> medicamentRepository.existsById(id));
+    }
+
+    public void deleteMedicament(Long id) {
+        log.debug("Suppression du médicament avec ID: {}", id);
+        if (!medicamentRepository.existsById(id)) {
+            throw new MedicamentNotFoundException("Medicament not found with id: " + id);
+        }
+        medicamentRepository.deleteById(id);
+        log.info("Médicament {} supprimé avec succès", id);
+    }
+}
+`
                 },
                 {
-                    id: 'pharmacy-controller',
+                    id: 'controller',
                     title: 'Controller',
                     language: 'java',
-                    code: `package com.herve.intergiciel.PharmacyManager.Controllers;
+                    code: `package com.herve.intergiciel.PharmacyManager.Controller;
 
-import java.util.List;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import com.herve.intergiciel.PharmacyManager.DTO.DtoMedicament;
-import com.herve.intergiciel.PharmacyManager.Modeles.Medicament;
-import com.herve.intergiciel.PharmacyManager.Services.PharmacyService;
 
-import lombok.AllArgsConstructor;
+import com.herve.intergiciel.PharmacyManager.Dto.MedicamentDTO;
+import com.herve.intergiciel.PharmacyManager.Exception.MedicamentNotFoundException;
+import com.herve.intergiciel.PharmacyManager.Service.MedicamentService;
+
+import java.util.List;
 
 @RestController
-@RequestMapping("/pharmacy")
-@AllArgsConstructor
-public class PharmacyController {
-    private final PharmacyService pharmacyService;
+@RequestMapping("/medicaments")
+@RequiredArgsConstructor
+@Slf4j
+// @CrossOrigin(origins = "*") 
+public class MedicamentController {
+    private final MedicamentService medicamentService;
 
-    @PostMapping(path = "/create", consumes = "application/json")
-    public ResponseEntity<Medicament> create(@RequestBody Medicament medicament) {
-        return ResponseEntity.ok(pharmacyService.create(medicament));
+    @PostMapping
+    public ResponseEntity<MedicamentDTO> createMedicament(@RequestBody @Valid MedicamentDTO medicamentDto) {
+        log.info("Création d'un nouveau médicament");
+        MedicamentDTO createdMedicament = medicamentService.createMedicament(medicamentDto);
+        return new ResponseEntity<>(createdMedicament, HttpStatus.CREATED);
     }
 
-    @GetMapping(produces = "application/json")
-    public ResponseEntity<?> search() {
-        List<DtoMedicament> medicaments = pharmacyService.search();
-        if (medicaments.isEmpty()) {
-            return ResponseEntity.ok("Aucun médicament trouvé");
-        }
+    @GetMapping
+    public ResponseEntity<List<MedicamentDTO>> getAllMedicaments() {
+        log.info("Récupération de tous les médicaments");
+        List<MedicamentDTO> medicaments = medicamentService.getAllMedicaments();
         return ResponseEntity.ok(medicaments);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> searchMedicamentById(@PathVariable Long id) {
-        return ResponseEntity.ok(pharmacyService.searchMedicamentById(id));
+    public ResponseEntity<MedicamentDTO> getMedicamentById(@PathVariable Long id) {
+        log.info("Récupération du médicament avec ID: {}", id);
+        MedicamentDTO medicament = medicamentService.getMedicamentById(id);
+        return ResponseEntity.ok(medicament);
     }
 
-    @PutMapping(path = "/update/{id}", consumes = "application/json")
-    public ResponseEntity<?> update(@PathVariable Long id, @RequestBody Medicament medicament) {
-        if (!id.equals(medicament.getIdMed())) {
-            return ResponseEntity.badRequest().body("ID dans l'URL ne correspond pas au corps de la requête");
-        }
+    @PutMapping("/{code}")
+    public ResponseEntity<?> updateMedicament(
+            @PathVariable String code,
+            @RequestBody @Valid MedicamentDTO medicamentDTO) {
+        
+        log.info("Tentative de mise à jour du médicament avec code: {}", code);
         try {
-            return ResponseEntity.ok(pharmacyService.updateMedicament(id, medicament));
+            MedicamentDTO updatedMedicament = medicamentService.updateMedicament(code, medicamentDTO);
+            log.info("Médicament {} mis à jour avec succès", code);
+            return ResponseEntity.ok(updatedMedicament);
+        } catch (MedicamentNotFoundException e) {
+            log.error("Médicament non trouvé: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Erreur lors de la mise à jour: " + e.getMessage());
+            log.error("Erreur lors de la mise à jour du médicament", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Erreur lors de la mise à jour");
         }
     }
 
-    @DeleteMapping("/delete/{id}")
-    public ResponseEntity<?> delete(@PathVariable Long id) {
-        pharmacyService.delete(id);
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteMedicament(@PathVariable Long id) {
+        log.info("Suppression du médicament avec ID: {}", id);
+        medicamentService.deleteMedicament(id);
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/exists/{id}")
-    public ResponseEntity<Boolean> medicamentExists(@PathVariable Long id) {
-        boolean exists = pharmacyService.medicamentExists(id);
-        if (!exists) {
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok(exists);
+    @PostMapping("/verify")
+    public ResponseEntity<Boolean> verifyMedicamentAvailability(@RequestBody List<Long> medicamentIds) {
+        log.info("Vérification de la disponibilité pour {} médicaments", medicamentIds.size());
+        boolean allAvailable = medicamentService.verifyMedicamentAvailability(medicamentIds);
+        return ResponseEntity.ok(allAvailable);
     }
 }`
+                }, {
+                    id: 'model',
+                    title: 'Entity',
+                    language: 'java',
+                    code: `
+                    package com.herve.intergiciel.PharmacyManager.Modele;
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.Date;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Entity
+@Table(name = "medicaments")
+public class Medicament {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, unique = true)
+    private String code;
+
+    @Column(nullable = false)
+    private String nom;
+
+    private String description;
+
+    @Column(name = "prix_unitaire", nullable = false)
+    private double prixUnitaire;
+
+    @Column(name = "quantite_stock", nullable = false)
+    private int quantiteStock;
+
+    @Column(name = "date_expiration")
+    @Temporal(TemporalType.DATE)
+    private Date dateExpiration;
+
+    @Column(name = "fabriquant")
+    private String fabriquant;
+
+    @Column(name = "categorie")
+    private String categorie;
+}
+
+`
+                },
+                {
+                    id: 'dto',
+                    title: 'DTO',
+                    language: 'java',
+                    code: `package com.herve.intergiciel.PharmacyManager.Dto;
+
+import lombok.Data;
+
+import java.util.Date;
+
+@Data
+public class MedicamentDTO {
+    private String code;
+    private String nom;
+    private String description;
+    private double prixUnitaire;
+    private int quantiteStock;
+    private Date dateExpiration;
+    private String fabriquant;
+    private String categorie;
+}
+
+
+`
+                },
+                {
+                    id: 'mapper',
+                    title: 'Mapper',
+                    language: 'java',
+                    code: `package com.herve.intergiciel.PharmacyManager.Config;
+
+
+import org.modelmapper.ModelMapper;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class AppConfig {
+    @Bean
+    public ModelMapper modelMapper() {
+        return new ModelMapper();
+    }
+}
+
+`
+                },
+                {
+                    id: 'exception',
+                    title: 'Exception',
+                    language: 'java',
+                    code: `package com.herve.intergiciel.PharmacyManager.Exception1;
+
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+
+import com.herve.intergiciel.PharmacyManager.Exception.MedicamentNotFoundException;
+
+
+@ControllerAdvice
+public class GlobalExceptionHandler {
+    @ExceptionHandler(MedicamentNotFoundException.class)
+    public ResponseEntity<String> handleMedicamentNotFoundException(MedicamentNotFoundException ex) {
+        return new ResponseEntity<>(ex.getMessage(), HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<String> handleGeneralException(Exception ex) {
+        return new ResponseEntity<>("Une erreur est survenue: " + ex.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+}
+
+`
+                },
+                {
+                    id: 'repository',
+                    title: 'Repository',
+                    language: 'java',
+                    code: `package com.herve.intergiciel.PharmacyManager.Repository;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import com.herve.intergiciel.PharmacyManager.Modele.Medicament;
+
+import java.util.Optional;
+
+@Repository
+public interface MedicamentRepository extends JpaRepository<Medicament, Long> {
+    Optional<Medicament> findByCode(String code);
+    boolean existsByCode(String code);  // Notez le "_" pour accéder à l'ID du Patient
+}
+`
+
+                },
+
+                {
+                    id: 'example-request',
+                    title: 'Exemple Requête POST',
+                    language: 'json',
+                    code: `{
+    "code": "MED123",
+    "nom": "Médicament Test",
+    "description": "Description du médicament test",
+    "prixUnitaire": 10.0,
+    "quantiteStock": 100,
+    "dateExpiration": "2025-12-31",
+    "fabriquant": "Fabriquant Test",
+    "categorie": "Catégorie Test"
+}`
                 }
+
             ]
         },
         dossier: {
@@ -764,7 +1045,8 @@ public class DossierMedicalService {
             dossierMedicalRepository.deleteById(id);
         }
     }
-}`
+}
+    `
                 }
             ]
         },
