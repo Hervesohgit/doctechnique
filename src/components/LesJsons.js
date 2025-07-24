@@ -1,26 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-    AppBar,
-    Toolbar,
-    Typography,
-    Tabs,
-    Tab,
-    Paper,
-    Accordion,
-    AccordionSummary,
-    AccordionDetails,
-    Divider,
-    IconButton,
-    Tooltip,
-    Box,
-    Drawer,
-    List,
-    ListItem,
-    ListItemText,
-    ListItemIcon,
-    useTheme
-} from '@mui/material';
-import useMediaQuery from '@mui/material/useMediaQuery';
+
+import React  from "react";
 import {
     ExpandMore as ExpandMoreIcon,
     MeetingRoom as RendezVousIcon,
@@ -39,61 +18,7 @@ import 'prismjs/components/prism-java';
 import 'prismjs/components/prism-json';
 import 'prismjs/components/prism-properties';
 
-const customStyles = `
-  .code-container pre {
-    background: #272822 !important;
-    margin: 0 !important;
-    border-radius: 0 0 4px 4px;
-  }
-  .code-container code {
-    background: transparent !important;
-    color: #f8f8f2 !important;
-  }
-`;
-
-const Doctechnique = () => {
-    const theme = useTheme();
-    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-
-    const [currentService, setCurrentService] = useState('patient');
-    const [tabValue, setTabValue] = useState(0);
-    const [copiedId, setCopiedId] = useState(null);
-    const [drawerOpen, setDrawerOpen] = useState(false);
-    const codeRef = useRef(null);
-
-    useEffect(() => {
-        if (codeRef.current) {
-            Prism.highlightElement(codeRef.current);
-        }
-    }, [tabValue, currentService]);
-
-    useEffect(() => {
-        setTabValue(0);
-    }, [currentService]);
-
-    const handleTabChange = (event, newValue) => {
-        setTabValue(newValue);
-    };
-
-    const handleServiceChange = (newValue) => {
-        setCurrentService(newValue);
-        setDrawerOpen(false);
-    };
-
-    const copyToClipboard = (text, id) => {
-        navigator.clipboard.writeText(text);
-        setCopiedId(id);
-        setTimeout(() => setCopiedId(null), 2000);
-    };
-
-    const toggleDrawer = (open) => (event) => {
-        if (event.type === 'keydown' && (event.key === 'Tab' || event.key === 'Shift')) {
-            return;
-        }
-        setDrawerOpen(open);
-    };
-
-    const services = {
+export const services = {
         patient: {
             name: "Patient",
             icon: <MedicalIcon />,
@@ -1664,259 +1589,164 @@ public interface PersonnelClient {
                     id: 'diagnostic-service',
                     title: 'Service',
                     language: 'java',
-                    code: `package com.herve.intergiciel.DiagnosticManager.Services;
+                    code: `package herve.pro.intergiciel.dosmed.Services;
+
+import herve.pro.intergiciel.dosmed.DTO.HistoricalRequest;
+import herve.pro.intergiciel.dosmed.Exceptions.HistoricalNotFoundException;
+import herve.pro.intergiciel.dosmed.Repository.HistoricalRepository;
+import herve.pro.intergiciel.dosmed.feignClient.PatientServiceClient;
+import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import herve.pro.intergiciel.dosmed.Modeles.Historical;
 
 import java.util.List;
-import java.util.stream.Collectors;
-
-import org.springframework.stereotype.Service;
-import com.herve.intergiciel.DiagnosticManager.DTO.DtoDiagnostic;
-import com.herve.intergiciel.DiagnosticManager.Exceptions.DiagnosticErrorExceptions;
-import com.herve.intergiciel.DiagnosticManager.Modeles.Diagnostic;
-import com.herve.intergiciel.DiagnosticManager.Repositories.DiagnosticRepository;
-
-import lombok.AllArgsConstructor;
 
 @Service
-@AllArgsConstructor
-public class DiagnosticService {
-    private DiagnosticRepository diagnosticRepository;
+@RequiredArgsConstructor
+@Transactional
+public class HistoricalService {
 
-    public Diagnostic create(Diagnostic diagnostic) {
-        return this.diagnosticRepository.save(diagnostic);
-    }
+    private final HistoricalRepository historicalRepository;
+    private final PatientServiceClient patientServiceClient;
 
-    public List<DtoDiagnostic> search() {
-        return diagnosticRepository.findAll()
-                .stream()
-                .map(DtoDiagnostic::fromEntity)
-                .collect(Collectors.toList());
-    }
+    public  Historical createHistorical(HistoricalRequest historical) {
+        try {
+            Historical historicalEntity = new Historical();
+            
+            historicalEntity.setAllergy(historical.getAllergy());
+            historicalEntity.setAntecedent(historical.getAntecedent());
+            historicalEntity.setMalEncours(historical.getMalEncours());
+            historicalEntity.setDocuments(historical.getDocuments());
+            historicalEntity.setPatient(historical.getPatient());
+            
+            if (!patientServiceClient.patientExists(historical.getPatient())) {
+                throw new HistoricalNotFoundException("Patient non trouvé avec l'ID : " + historical.getPatient());
+            } else {
 
-    public Diagnostic searchDiagnosticById(Long id) {
-        return diagnosticRepository.findById(id)
-                .orElseThrow(() -> new DiagnosticErrorExceptions("Diagnostic non trouvé avec l'ID " + id));
-    }
+                return historicalRepository.save(historicalEntity);
+            }
 
-    public boolean diagnosticExists(Long id) {
-        return diagnosticRepository.existsById(id);
-    }
-
-    public Diagnostic updateDiagnostic(Long id, Diagnostic diagnostic) {
-        Diagnostic diagnosticToUpdate = diagnosticRepository.findById(id)
-                .orElseThrow(() -> new DiagnosticErrorExceptions("Diagnostic non trouvé avec l'ID : " + id));
-
-        diagnosticToUpdate.setDateDiagnostic(diagnostic.getDateDiagnostic());
-        diagnosticToUpdate.setResultat(diagnostic.getResultat());
-        diagnosticToUpdate.setRecommandations(diagnostic.getRecommandations());
-        // Potentially update patient or personnel association
-
-        return diagnosticRepository.save(diagnosticToUpdate);
-    }
-
-    public void delete(Long id) {
-        if (!diagnosticRepository.existsById(id)) {
-            throw new DiagnosticErrorExceptions("Diagnostic non trouvé");
-        } else {
-            diagnosticRepository.deleteById(id);
+        } catch (DataIntegrityViolationException e) {
+            throw new HistoricalNotFoundException("Violation de contrainte : " + e.getMessage());
         }
     }
+
+    @Transactional(readOnly = true)
+    public List<Historical> getAllHistoricals() {
+        return historicalRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public Historical getHistoricalById(Long id) {
+        return historicalRepository.findById(id)
+                .orElseThrow(() -> new HistoricalNotFoundException("Historique non trouvé avec l'ID : " + id));
+    }
+
+    public Historical updateHistorical(Long id, Historical historicalDetails) {
+        Historical historical = historicalRepository.findById(id)
+                .orElseThrow(() -> new HistoricalNotFoundException("Historique non trouvé avec l'ID : " + id));
+
+        historical.setAllergy(historicalDetails.getAllergy());
+        historical.setAntecedent(historicalDetails.getAntecedent());
+        historical.setMalEncours(historicalDetails.getMalEncours());
+        historical.setDocuments(historicalDetails.getDocuments());
+        
+        // Ne mettez à jour le patient que si nécessaire (car champ unique)
+        if (!historical.getPatient().equals(historicalDetails.getPatient())) {
+            historical.setPatient(historicalDetails.getPatient());
+        }
+
+        return historicalRepository.save(historical);
+    }
+
+    public void deleteHistorical(Long id) {
+        if (!historicalRepository.existsById(id)) {
+            throw new HistoricalNotFoundException("Historique non trouvé avec l'ID : " + id);
+        }
+        historicalRepository.deleteById(id);
+    }
+
+
 }`
+                },
+                {
+                    id: 'diagnostic-controller',
+                    title: 'Controller',
+                    language: 'java',
+                    code: `package herve.pro.intergiciel.dosmed.CONTROLLER;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import herve.pro.intergiciel.dosmed.DTO.HistoricalRequest;
+import herve.pro.intergiciel.dosmed.Modeles.Historical;
+import herve.pro.intergiciel.dosmed.Services.HistoricalService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/dossier")
+@RequiredArgsConstructor
+// @CrossOrigin(origins = "*")
+public class DossierController {
+
+    private final HistoricalService historicalService;
+    // private final ObjectMapper objectMapper;
+
+    @PostMapping("/create")
+    public ResponseEntity<?> createDossier(@RequestBody HistoricalRequest request) {
+        try {
+            Historical historical = historicalService.createHistorical(request);
+            return ResponseEntity.status(HttpStatus.CREATED).body(historical);
+        } catch (DataIntegrityViolationException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body("Conflit de données : " + e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                    .body("Erreur interne : " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/all")
+    public ResponseEntity<List<Historical>> getAllDossiers() {
+        return ResponseEntity.ok(historicalService.getAllHistoricals());
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Historical> getHistoricalById(@PathVariable Long id) {
+        return ResponseEntity.ok(historicalService.getHistoricalById(id));
+    }
+
+
+    @PutMapping("/update/{id}")
+    public ResponseEntity<?> updateHistorical(
+            @PathVariable Long id,
+            @RequestBody Historical historical) {
+        if (!id.equals(historical.getId())) {
+            return ResponseEntity.badRequest().body("ID in URL ne correspond pas au corps de la requête");
+        }
+        try {
+            return ResponseEntity.ok(historicalService.updateHistorical(id, historical));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                    .body("Erreur lors de la mise à jour: " + e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/delete/{id}")
+    public ResponseEntity<Void> deleteHistorical(@PathVariable Long id) {
+        historicalService.deleteHistorical(id);
+        return ResponseEntity.noContent().build();
+    }
+}
+`
                 }
             ]
         }
     };
-
-    const currentSnippets = services[currentService].snippets;
-    const safeTabValue = Math.min(tabValue, currentSnippets.length - 1);
-
-    const drawer = (
-        <Box
-            sx={{ width: 250 }}
-            role="presentation"
-            onClick={toggleDrawer(false)}
-            onKeyDown={toggleDrawer(false)}
-        >
-            <Toolbar>
-                <Typography variant="h6" sx={{ my: 2 }}>
-                    Services
-                </Typography>
-            </Toolbar>
-            <Divider />
-            <List>
-                {Object.keys(services).map((key) => (
-                    <ListItem button key={key} onClick={() => handleServiceChange(key)}>
-                        <ListItemIcon>{services[key].icon}</ListItemIcon>
-                        <ListItemText primary={services[key].name} />
-                    </ListItem>
-                ))}
-            </List>
-        </Box>
-    );
-
-    return (
-        <div className="bg-white dark:bg-gray-900 min-h-screen">
-            <style>{customStyles}</style>
-
-            <AppBar position="static" className="mb-8">
-                <Toolbar>
-                    {isMobile && (
-                        <IconButton
-                            color="inherit"
-                            aria-label="open drawer"
-                            edge="start"
-                            onClick={toggleDrawer(true)}
-                            sx={{ mr: 2 }}
-                        >
-                            <MenuIcon />
-                        </IconButton>
-                    )}
-                    <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-                        Documentation Technique
-                    </Typography>
-                    {!isMobile && (
-                        <Tabs
-                            value={currentService}
-                            onChange={(e, newValue) => setCurrentService(newValue)}
-                            indicatorColor="secondary"
-                            textColor="inherit"
-                            variant="scrollable"
-                        >
-                            {Object.keys(services).map((key) => (
-                                <Tab
-                                    key={key}
-                                    value={key}
-                                    label={services[key].name}
-                                    icon={services[key].icon}
-                                    iconPosition="start"
-                                />
-                            ))}
-                        </Tabs>
-                    )}
-                </Toolbar>
-            </AppBar>
-
-            <nav>
-                <Drawer
-                    variant="temporary"
-                    open={drawerOpen}
-                    onClose={toggleDrawer(false)}
-                    ModalProps={{
-                        keepMounted: true,
-                    }}
-                    sx={{
-                        display: { xs: 'block', md: 'none' },
-                        '& .MuiDrawer-paper': { boxSizing: 'border-box', width: 250 },
-                    }}
-                >
-                    {drawer}
-                </Drawer>
-            </nav>
-
-            <Box className="p-8">
-                <Typography variant="h4" gutterBottom className="text-gray-900 dark:text-white">
-                    Documentation - {services[currentService].name}
-                </Typography>
-
-                <Paper className="mt-6 mb-6">
-                    <Tabs
-                        value={safeTabValue}
-                        onChange={handleTabChange}
-                        variant="scrollable"
-                    >
-                        {currentSnippets.map((snippet) => (
-                            <Tab key={snippet.id} label={snippet.title} />
-                        ))}
-                    </Tabs>
-                </Paper>
-
-                <div className="mb-8">
-                    {currentSnippets[safeTabValue] && (
-                        <div className="relative rounded-lg overflow-hidden shadow-lg">
-                            <div className="px-4 py-3 bg-gray-800 flex justify-between items-center rounded-t-lg">
-                                <Typography variant="subtitle2" className="text-white">
-                                    {currentSnippets[safeTabValue].title}
-                                </Typography>
-                                <Tooltip title={copiedId === currentSnippets[safeTabValue].id ? 'Copié!' : 'Copier'}>
-                                    <IconButton
-                                        size="small"
-                                        onClick={() => copyToClipboard(currentSnippets[safeTabValue].code, currentSnippets[safeTabValue].id)}
-                                        className="text-white hover:bg-gray-700"
-                                    >
-                                        {copiedId === currentSnippets[safeTabValue].id ?
-                                            <CheckIcon fontSize="small" /> :
-                                            <ContentCopyIcon fontSize="small" />}
-                                    </IconButton>
-                                </Tooltip>
-                            </div>
-                            <div className="code-container">
-                                <pre>
-                                    <code ref={codeRef} className={`language-${currentSnippets[safeTabValue].language}`}>
-                                        {currentSnippets[safeTabValue].code}
-                                    </code>
-                                </pre>
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                <Divider className="my-8" />
-
-                <Typography variant="h5" gutterBottom className="text-white">
-                    Structure de l'API
-                </Typography>
-
-                <Accordion className="mb-4">
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                        <Typography>Endpoints disponibles</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                        <div className="bg-gray-500 text-black p-4 rounded-lg">
-                            <pre className="m-0">
-                                <code className="language-java text-black">
-                                    {currentService === 'patient' && `// Endpoints Patient
-POST   /patient/create       - Créer un patient
-GET    /patient              - Lister tous les patients
-GET    /patient/{id}         - Récupérer un patient par ID
-PUT    /patient/update/{id}  - Mettre à jour un patient
-DELETE /patient/delete/{id}  - Supprimer un patient
-POST   /patient/exists/{id}  - Vérifier l'existence d'un patient`}
-                                    {currentService === 'personnel' && `// Endpoints Personnel
-POST   /personnel/create     - Ajouter un membre du personnel
-GET    /personnel            - Lister tout le personnel
-GET    /personnel/{id}       - Récupérer un membre du personnel par ID
-PUT    /personnel/update/{id}- Mettre à jour un membre du personnel
-DELETE /personnel/delete/{id}- Supprimer un membre du personnel
-POST   /personnel/exists/{id}- Vérifier l'existence d'un membre du personnel`}
-                                    {currentService === 'pharmacy' && `// Endpoints Pharmacy
-POST   /medicament/create      - Ajouter un médicament
-GET    /medicament             - Lister tous les médicaments
-GET    /medicament/{id}        - Récupérer un médicament par ID
-PUT    /medicament/update/{id} - Mettre à jour un médicament
-DELETE /medicament/delete/{id} - Supprimer un médicament
-POST   /medicament/exists/{id} - Vérifier l'existence d'un médicament`}
-                                    {currentService === 'dossier' && `// Endpoints Dossier Médical
-POST   /dossier/create       - Créer un dossier médical
-GET    /dossier              - Lister tous les dossiers médicaux
-GET    /dossier/{id}         - Récupérer un dossier médical par ID
-PUT    /dossier/update/{id}  - Mettre à jour un dossier médical
-DELETE /dossier/delete/{id}  - Supprimer un dossier médical
-POST   /dossier/exists/{id}  - Vérifier l'existence d'un dossier médical`}
-                                    {currentService === 'diagnostic' && `// Endpoints Diagnostic
-POST   /diagnostic/create    - Créer un diagnostic
-GET    /diagnostic           - Lister tous les diagnostics
-GET    /diagnostic/{id}      - Récupérer un diagnostic par ID
-PUT    /diagnostic/update/{id}- Mettre à jour un diagnostic
-DELETE /diagnostic/delete/{id}- Supprimer un diagnostic
-POST   /diagnostic/exists/{id}- Vérifier l'existence d'un diagnostic`}
-                                </code>
-                            </pre>
-                        </div>
-                    </AccordionDetails>
-                </Accordion>
-            </Box>
-        </div>
-    );
-};
-
-export default Doctechnique;
